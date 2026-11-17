@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>存量提值喜报</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  body{background:#f3ece1;font-family:"微软雅黑","Microsoft YaHei",sans-serif;display:flex;flex-direction:column;align-items:center;padding:16px 12px 30px;}
+  .tip{font-size:20px;color:#7a1f1f;margin:6px 0 4px;letter-spacing:2px;font-weight:bold;}
+  .sub{font-size:12px;color:#8a6d4f;margin-bottom:14px;}
+  #pvwrap{position:relative;width:375px;border-radius:14px;overflow:hidden;box-shadow:0 10px 30px rgba(122,31,26,.35);}
+  canvas#pv{display:block;width:100%;height:auto;}
+  .panel{width:100%;max-width:375px;background:#fff;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.08);padding:16px;margin-top:18px;}
+  .panel h3{font-size:15px;color:#7a211b;margin-bottom:12px;border-left:4px solid #d8a542;padding-left:8px;}
+  .row{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:6px;}
+  .lab{font-size:14px;color:#333;}
+  .lab small{color:#999;font-size:11px;}
+  input[type=number]{width:140px;padding:9px 10px;font-size:16px;border:1px solid #d8b26a;border-radius:8px;text-align:right;background:#fffaf0;color:#7a211b;font-weight:bold;}
+  .name-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+  .name-row input[type=text]{flex:1;padding:9px 10px;font-size:15px;border:1px solid #d8b26a;border-radius:8px;text-align:center;}
+  .live-total{background:linear-gradient(135deg,#f9ecd0,#f6dfb6);border:1px solid #e2b96f;border-radius:10px;padding:12px;text-align:center;margin-bottom:14px;}
+  .lt-label{font-size:12px;color:#8a6d4f;}
+  .lt-num{font-size:30px;color:#c92312;font-weight:bold;}
+  .btn{width:100%;padding:13px;font-size:16px;font-weight:bold;color:#fff;border:none;border-radius:10px;background:linear-gradient(135deg,#d1280e,#e8952c);letter-spacing:3px;cursor:pointer;box-shadow:0 4px 12px rgba(209,40,14,.35);margin-top:16px;}
+  .btn:active{transform:translateY(1px);}
+  .formula{font-size:11px;color:#a88b63;margin-top:10px;line-height:1.6;text-align:center;}
+  #overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:99;padding:20px;}
+  #overlay img{max-width:100%;max-height:82vh;border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.6);}
+  #overlay .hint{color:#ffd98a;font-size:14px;margin-top:12px;letter-spacing:1px;}
+  #overlay .close{margin-top:14px;color:#fff;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.2);padding:8px 22px;border-radius:20px;font-size:14px;cursor:pointer;}
+</style>
+</head>
+<body>
+  <div class="tip">存量提值喜报</div>
+  <div class="sub">输入数据 · 实时算出激励 · 生成图片转发</div>
+
+  <div id="pvwrap"><canvas id="pv" width="750" height="1210"></canvas></div>
+
+  <div class="panel">
+    <h3>输入数据</h3>
+    <div class="live-total">
+      <div class="lt-label">当前总激励（元）</div>
+      <div class="lt-num" id="liveNum">0</div>
+    </div>
+    <div class="row">
+      <span class="lab">套餐价值 <small>(元)</small></span>
+      <input type="number" id="tc" value="0" min="0" step="0.01">
+    </div>
+    <div class="row">
+      <span class="lab">提值金额 <small>(元)</small></span>
+      <input type="number" id="tv" value="0" min="0" step="0.01">
+    </div>
+    <div class="name-row">
+      <span class="lab" style="white-space:nowrap;">渠道/姓名</span>
+      <input type="text" id="nm" placeholder="如：张三（营业部）" value="">
+    </div>
+    <div class="formula">
+      套餐激励 = 套餐价值 × 0.5<br>
+      提值激励 = 提值金额 × 3（≤25元）/ ×5（&gt;25元）<br>
+      总激励 = 套餐激励 + 提值激励
+    </div>
+  </div>
+
+  <button class="btn" id="genBtn">生成喜报图片</button>
+
+  <div id="overlay">
+    <img id="bigImg" alt="">
+    <div class="hint">长按图片保存 · 转发分享</div>
+    <div class="close" id="closeBtn">关闭</div>
+  </div>
+
+<script>
+var CW=750, CH=1210, CX=CW/2;
+var canvas=document.getElementById('pv');
+var x=canvas.getContext('2d');
+var g=2; canvas.width=CW*g; canvas.height=CH*g; x.scale(g,g);
+
+function rr(x0,y0,w,h,r){
+  x.beginPath();
+  x.moveTo(x0+r,y0);
+  x.arcTo(x0+w,y0,x0+w,y0+h,r);
+  x.arcTo(x0+w,y0+h,x0,y0+h,r);
+  x.arcTo(x0,y0+h,x0,y0,r);
+  x.arcTo(x0,y0,x0+r,y0,r);
+  x.closePath();
+}
+function star5(cx,cy,r,color){
+  x.fillStyle=color;x.beginPath();
+  for(var i=0;i<10;i++){
+    var ang=-Math.PI/2+i*Math.PI/5,rd=i%2?r*.42:r;
+    var px=cx+Math.cos(ang)*rd, py=cy+Math.sin(ang)*rd;
+    if(i===0)x.moveTo(px,py);else x.lineTo(px,py);
+  }
+  x.closePath();x.fill();
+}
+function spark(cx,cy,r,color){
+  x.fillStyle=color;x.beginPath();
+  x.moveTo(cx,cy-r);x.lineTo(cx+r*.25,cy-r*.25);x.lineTo(cx+r,cy);x.lineTo(cx+r*.25,cy+r*.25);x.lineTo(cx,cy+r);x.lineTo(cx-r*.25,cy+r*.25);x.lineTo(cx-r,cy);x.lineTo(cx-r*.25,cy-r*.25);x.closePath();x.fill();
+}
+function coin(cx,cy,r){
+  x.fillStyle='#E8B53A';x.beginPath();x.arc(cx,cy,r,0,Math.PI*2);x.fill();
+  x.strokeStyle='#C98A1F';x.lineWidth=2;x.stroke();
+  x.fillStyle='#C98A1F';x.font='bold '+Math.round(r*1.1)+'px Arial';x.textAlign='center';x.textBaseline='middle';
+  x.fillText('¥',cx,cy);
+}
+function firework(cx,cy,r,color){
+  for(var i=0;i<12;i++){
+    var ang=i*Math.PI/6;
+    x.strokeStyle=color;x.lineWidth=2;x.beginPath();
+    x.moveTo(cx+Math.cos(ang)*r*.4,cy+Math.sin(ang)*r*.4);
+    x.lineTo(cx+Math.cos(ang)*r,cy+Math.sin(ang)*r);
+    x.stroke();
+  }
+}
+function scrollBar(y0){
+  var grd=x.createLinearGradient(0,y0,0,y0+26);
+  grd.addColorStop(0,'#8E0E14');grd.addColorStop(1,'#D3242E');
+  rr(0,y0,CW,26,4);x.fillStyle=grd;x.fill();
+  var hx=CX;
+  x.fillStyle='#FFD24A';
+  rr(hx-95,y0+2,34,22,6);x.fill();
+  rr(hx+61,y0+2,34,22,6);x.fill();
+  x.fillStyle='#8E0E14';rr(hx-86,y0+4,16,18,5);x.fill();rr(hx+70,y0+4,16,18,5);x.fill();
+}
+
+function drawBg(){
+  var grd=x.createLinearGradient(0,0,0,CH);
+  grd.addColorStop(0,'#8E0E14');grd.addColorStop(.5,'#B0151C');grd.addColorStop(1,'#7A0D10');
+  x.fillStyle=grd;x.fillRect(0,0,CW,CH);
+  var rg=x.createLinearGradient(0,0,CW,0);
+  rg.addColorStop(0,'rgba(255,230,150,.18)');rg.addColorStop(.5,'rgba(255,240,180,.32)');rg.addColorStop(1,'rgba(255,230,150,.18)');
+  for(var i=0;i<9;i++){
+    x.save();x.translate(CX,0);x.rotate((-60+i*15)*Math.PI/180);
+    x.fillStyle=rg;x.fillRect(-30,0,60,CH*1.1);x.restore();
+  }
+  coin(CX-262,170,20); coin(CX+262,170,20);
+  coin(CX-300,330,14); coin(CX+300,330,14);
+  coin(CX-240,430,16); coin(CX+240,430,16);
+  firework(CX-320,1050,34,'rgba(255,220,120,.35)'); firework(CX+320,1050,34,'rgba(255,220,120,.35)');
+  firework(CX-260,1010,22,'rgba(255,90,90,.3)'); firework(CX+260,1010,22,'rgba(255,90,90,.3)');
+  star5(CX-200,55,12,'#FFE9B0'); star5(CX+200,55,12,'#FFE9B0');
+  star5(CX-250,480,9,'#FFE9B0'); star5(CX+250,480,9,'#FFE9B0');
+  spark(CX-340,210,10,'rgba(255,246,220,.7)'); spark(CX+340,210,10,'rgba(255,246,220,.7)');
+  spark(CX-210,300,8,'rgba(255,246,220,.6)'); spark(CX+210,300,8,'rgba(255,246,220,.6)');
+  spark(CX-150,500,9,'rgba(255,246,220,.6)'); spark(CX+150,500,9,'rgba(255,246,220,.6)');
+  spark(CX-330,820,9,'rgba(255,246,220,.6)'); spark(CX+330,820,9,'rgba(255,246,220,.6)');
+}
+
+function round2(n){return Math.round(n*100)/100;}
+function formatNum(n){return n.toLocaleString('zh-CN',{maximumFractionDigits:2});}
+function getData(){
+  var tc=parseFloat(document.getElementById('tc').value)||0;
+  var tv=parseFloat(document.getElementById('tv').value)||0;
+  var nm=document.getElementById('nm').value.trim();
+  var plan=round2(tc*0.5);
+  var up= tv<=25 ? round2(tv*3) : round2(tv*5);
+  var total=round2(plan+up);
+  return {plan:plan, up:up, total:total, nm:nm, tc:tc, tv:tv};
+}
+function calc(){ var d=getData(); document.getElementById('liveNum').textContent=d.total; return d; }
+
+function draw(){
+  var d=getData();
+  drawBg();
+  scrollBar(0);
+  x.textAlign='center';x.textBaseline='middle';
+  x.font='bold 56px "STLiti","华文隶书","LiSu","KaiTi","Microsoft YaHei"';
+  x.fillStyle='#FFE39A';x.strokeStyle='#5E0A0C';x.lineWidth=5;
+  x.strokeText('存量提值喜报',CX,150);x.fillText('存量提值喜报',CX,150);
+  x.font='16px "微软雅黑","Microsoft YaHei"';
+  x.fillStyle='#F7E3B2';x.fillText('—— 激励兑现 · 荣誉共享 ——',CX,196);
+
+  x.font='bold 18px "微软雅黑"';x.fillStyle='#FFE9B0';
+  x.fillText('总 激 励（元）',CX,282);
+  var numTxt=formatNum(d.total);
+  var g=x.createLinearGradient(CX-180,0,CX+180,0);
+  g.addColorStop(0,'#FFE39A');g.addColorStop(.5,'#FFF6DC');g.addColorStop(1,'#FFE39A');
+  x.font='bold 92px Arial, "微软雅黑"';
+  x.strokeStyle='#6E0B0F';x.lineWidth=7;
+  x.strokeText(numTxt,CX,368);x.fillStyle=g;x.fillText(numTxt,CX,368);
+  x.font='bold 22px "微软雅黑"';x.fillStyle='#FFE9B0';
+  x.fillText('＝ 套餐激励 + 提值激励',CX,412);
+
+  card(470,'套餐激励','套餐价值 × 0.5',d.plan);
+  card(590,'提值激励','提值金额 ≤25×3 / >25×5',d.up);
+
+  var gy=700;
+  rr(60,gy,CW-120,120,16);x.fillStyle='rgba(255,225,140,.18)';x.fill();
+  x.strokeStyle='#E8B45A';x.lineWidth=2;x.stroke();
+  x.font='bold 22px "微软雅黑"';x.fillStyle='#FFE9B0';
+  x.fillText('合计激励（元）',CX,gy+34);
+  var g2=x.createLinearGradient(CX-120,0,CX+120,0);
+  g2.addColorStop(0,'#FFE39A');g2.addColorStop(.5,'#FFF6DC');g2.addColorStop(1,'#FFE39A');
+  x.font='bold 56px Arial, "微软雅黑"';
+  x.strokeStyle='#6E0B0F';x.lineWidth=8;
+  x.strokeText(d.total,CX,gy+70);x.fillStyle=g2;x.fillText(d.total,CX,gy+70);
+
+  var nm=d.nm||'渠道 / 姓名';
+  x.font='bold 34px "微软雅黑"';x.fillStyle='#FFF6DC';
+  x.fillText(nm,CX,846);
+
+  var sy=940;
+  x.font='bold 44px "STLiti","隶书","KaiTi"';x.fillStyle='#FFE9B0';
+  x.fillText('存量提一档',CX-134,sy);
+  x.fillText('收益多一分',CX+134,sy);
+  star5(CX,sy,10,'#FFE9B0');
+  x.font='16px "微软雅黑"';x.fillStyle='#F5D9A8';
+  x.fillText('新乡分公司',CX,sy+40);
+  scrollBar(CH-40);
+}
+
+function card(y,title,sub,val){
+  x.font='bold 22px "微软雅黑"';x.fillStyle='#FFF0C8';
+  x.fillText(title,CX,y+16);
+  x.font='13px "微软雅黑"';x.fillStyle='#F0D9A6';
+  x.fillText(sub,CX,y+38);
+  x.font='bold 40px Arial, "微软雅黑"';x.fillStyle='#FFE9B0';
+  x.fillText('¥'+formatNum(val),CX,y+70);
+}
+
+document.getElementById('tc').addEventListener('input',function(){calc();draw();});
+document.getElementById('tv').addEventListener('input',function(){calc();draw();});
+document.getElementById('nm').addEventListener('input',function(){calc();draw();});
+calc();
+
+document.getElementById('genBtn').addEventListener('click',function(){
+  draw();
+  var dataUrl=canvas.toDataURL('image/jpeg',0.92);
+  document.getElementById('bigImg').src=dataUrl;
+  document.getElementById('overlay').style.display='flex';
+});
+document.getElementById('closeBtn').addEventListener('click',function(){
+  document.getElementById('overlay').style.display='none';
+});
+draw();
+</script>
+</body>
+</html>
